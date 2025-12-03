@@ -1,0 +1,472 @@
+import React, { useState, useEffect } from 'react';
+import { Users, Play, Plus, Trash2, Clock, Trophy, Share2 } from 'lucide-react';
+
+export default function MultiplayerQuiz() {
+  const [mode, setMode] = useState('home'); // home, admin, player, game, results
+  const [quizId, setQuizId] = useState('');
+  const [playerName, setPlayerName] = useState('');
+  const [questions, setQuestions] = useState([]);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [players, setPlayers] = useState([]);
+  const [answers, setAnswers] = useState({});
+  const [playerAnswer, setPlayerAnswer] = useState(null);
+  const [showResults, setShowResults] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(30);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [gameState, setGameState] = useState('waiting'); // waiting, active, ended
+
+  // Generate unique quiz ID
+  const generateQuizId = () => {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  };
+
+  // Admin: Create new quiz
+  const createQuiz = () => {
+    const newQuizId = generateQuizId();
+    setQuizId(newQuizId);
+    setIsAdmin(true);
+    setMode('admin');
+    setQuestions([]);
+    setPlayers([]);
+  };
+
+  // Add question
+  const addQuestion = () => {
+    setQuestions([...questions, {
+      question: '',
+      options: ['', '', '', ''],
+      correctAnswer: 0,
+      timeLimit: 30
+    }]);
+  };
+
+  // Update question
+  const updateQuestion = (index, field, value) => {
+    const updated = [...questions];
+    updated[index][field] = value;
+    setQuestions(updated);
+  };
+
+  // Update option
+  const updateOption = (qIndex, oIndex, value) => {
+    const updated = [...questions];
+    updated[qIndex].options[oIndex] = value;
+    setQuestions(updated);
+  };
+
+  // Delete question
+  const deleteQuestion = (index) => {
+    setQuestions(questions.filter((_, i) => i !== index));
+  };
+
+  // Player: Join quiz
+  const joinQuiz = () => {
+    if (playerName && quizId) {
+      const player = {
+        id: Math.random().toString(36).substring(7),
+        name: playerName,
+        score: 0
+      };
+      setPlayers([...players, player]);
+      setMode('game');
+    }
+  };
+
+  // Start quiz (Admin)
+  const startQuiz = () => {
+    if (questions.length > 0) {
+      setGameState('active');
+      setCurrentQuestion(0);
+      setTimeLeft(questions[0].timeLimit);
+      setShowResults(false);
+    }
+  };
+
+  // Timer effect
+  useEffect(() => {
+    if (gameState === 'active' && !showResults && timeLeft > 0) {
+      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (timeLeft === 0 && !showResults) {
+      handleTimeUp();
+    }
+  }, [timeLeft, gameState, showResults]);
+
+  // Handle time up
+  const handleTimeUp = () => {
+    setShowResults(true);
+  };
+
+  // Submit answer
+  const submitAnswer = (answerIndex) => {
+    if (!showResults) {
+      const playerId = players[players.length - 1]?.id;
+      const isCorrect = answerIndex === questions[currentQuestion].correctAnswer;
+      
+      setPlayerAnswer(answerIndex);
+      setAnswers({
+        ...answers,
+        [`${currentQuestion}-${playerId}`]: { answer: answerIndex, isCorrect }
+      });
+      
+      if (isCorrect) {
+        const updated = [...players];
+        updated[updated.length - 1].score += 100;
+        setPlayers(updated);
+      }
+    }
+  };
+
+  // Next question
+  const nextQuestion = () => {
+    if (currentQuestion < questions.length - 1) {
+      setCurrentQuestion(currentQuestion + 1);
+      setTimeLeft(questions[currentQuestion + 1].timeLimit);
+      setShowResults(false);
+      setPlayerAnswer(null);
+    } else {
+      setGameState('ended');
+      setMode('results');
+    }
+  };
+
+  // Calculate results
+  const getQuestionStats = () => {
+    const stats = questions[currentQuestion].options.map(() => 0);
+    let correct = 0;
+    
+    Object.entries(answers).forEach(([key, value]) => {
+      if (key.startsWith(`${currentQuestion}-`)) {
+        stats[value.answer]++;
+        if (value.isCorrect) correct++;
+      }
+    });
+    
+    return { stats, correct, total: Object.keys(answers).filter(k => k.startsWith(`${currentQuestion}-`)).length };
+  };
+
+  // Copy quiz link
+  const copyQuizLink = () => {
+    const link = `Quiz ID: ${quizId}`;
+    navigator.clipboard.writeText(link);
+    alert('Quiz ID copied to clipboard!');
+  };
+
+  // HOME SCREEN
+  if (mode === 'home') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-600 via-blue-600 to-cyan-600 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+          <div className="text-center mb-8">
+            <Trophy className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+            <h1 className="text-4xl font-bold text-gray-800 mb-2">Quiz Master</h1>
+            <p className="text-gray-600">Create or join a multiplayer quiz</p>
+          </div>
+
+          <div className="space-y-4">
+            <button
+              onClick={createQuiz}
+              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition flex items-center justify-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Create New Quiz
+            </button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">or</span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Enter Quiz ID"
+                value={quizId}
+                onChange={(e) => setQuizId(e.target.value.toUpperCase())}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Your Name"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:outline-none"
+              />
+              <button
+                onClick={joinQuiz}
+                disabled={!quizId || !playerName}
+                className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <Users className="w-5 h-5" />
+                Join Quiz
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ADMIN SCREEN
+  if (mode === 'admin') {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-3xl font-bold text-gray-800">Quiz Setup</h2>
+                <p className="text-gray-600">Quiz ID: <span className="font-mono font-bold text-blue-600">{quizId}</span></p>
+              </div>
+              <button
+                onClick={copyQuizLink}
+                className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition"
+              >
+                <Share2 className="w-4 h-4" />
+                Share ID
+              </button>
+            </div>
+            
+            <div className="flex gap-4">
+              <div className="flex items-center gap-2 text-gray-600">
+                <Users className="w-5 h-5" />
+                <span>{players.length} players waiting</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 mb-6">
+            {questions.map((q, qIndex) => (
+              <div key={qIndex} className="bg-white rounded-xl shadow p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-700">Question {qIndex + 1}</h3>
+                  <button
+                    onClick={() => deleteQuestion(qIndex)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Enter your question"
+                  value={q.question}
+                  onChange={(e) => updateQuestion(qIndex, 'question', e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg mb-4 focus:border-blue-500 focus:outline-none"
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                  {q.options.map((option, oIndex) => (
+                    <div key={oIndex} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name={`correct-${qIndex}`}
+                        checked={q.correctAnswer === oIndex}
+                        onChange={() => updateQuestion(qIndex, 'correctAnswer', oIndex)}
+                        className="w-4 h-4"
+                      />
+                      <input
+                        type="text"
+                        placeholder={`Option ${oIndex + 1}`}
+                        value={option}
+                        onChange={(e) => updateOption(qIndex, oIndex, e.target.value)}
+                        className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-gray-600" />
+                  <input
+                    type="number"
+                    value={q.timeLimit}
+                    onChange={(e) => updateQuestion(qIndex, 'timeLimit', parseInt(e.target.value))}
+                    className="w-20 px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                    min="5"
+                    max="120"
+                  />
+                  <span className="text-gray-600">seconds</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-4">
+            <button
+              onClick={addQuestion}
+              disabled={questions.length >= 10}
+              className="flex-1 bg-gray-200 text-gray-700 py-4 rounded-xl font-semibold hover:bg-gray-300 transition disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              Add Question ({questions.length}/10)
+            </button>
+            <button
+              onClick={startQuiz}
+              disabled={questions.length === 0}
+              className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <Play className="w-5 h-5" />
+              Start Quiz
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // GAME SCREEN
+  if (mode === 'game' && gameState === 'active') {
+    const question = questions[currentQuestion];
+    const stats = showResults ? getQuestionStats() : null;
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-3xl w-full">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="bg-purple-100 text-purple-600 px-4 py-2 rounded-lg font-semibold">
+                Question {currentQuestion + 1}/{questions.length}
+              </div>
+              {!showResults && (
+                <div className="flex items-center gap-2 bg-red-100 text-red-600 px-4 py-2 rounded-lg font-semibold">
+                  <Clock className="w-4 h-4" />
+                  {timeLeft}s
+                </div>
+              )}
+            </div>
+            {players.length > 0 && (
+              <div className="bg-yellow-100 text-yellow-800 px-4 py-2 rounded-lg font-semibold">
+                Score: {players[players.length - 1].score}
+              </div>
+            )}
+          </div>
+
+          <h2 className="text-2xl font-bold text-gray-800 mb-8">{question.question}</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {question.options.map((option, index) => {
+              const isCorrect = index === question.correctAnswer;
+              const isSelected = playerAnswer === index;
+              
+              let buttonClass = "p-6 rounded-xl border-2 font-semibold text-lg transition ";
+              
+              if (showResults) {
+                if (isCorrect) {
+                  buttonClass += "bg-green-100 border-green-500 text-green-700";
+                } else if (isSelected) {
+                  buttonClass += "bg-red-100 border-red-500 text-red-700";
+                } else {
+                  buttonClass += "bg-gray-100 border-gray-300 text-gray-600";
+                }
+              } else if (isSelected) {
+                buttonClass += "bg-blue-500 border-blue-600 text-white";
+              } else {
+                buttonClass += "bg-white border-gray-300 text-gray-700 hover:border-blue-500 hover:bg-blue-50 cursor-pointer";
+              }
+
+              return (
+                <button
+                  key={index}
+                  onClick={() => submitAnswer(index)}
+                  disabled={showResults || playerAnswer !== null}
+                  className={buttonClass}
+                >
+                  {option}
+                  {showResults && stats && (
+                    <div className="text-sm mt-2 opacity-75">
+                      {stats.stats[index]} {stats.stats[index] === 1 ? 'player' : 'players'}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {showResults && stats && (
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
+              <h3 className="text-xl font-bold text-blue-800 mb-2">Results</h3>
+              <p className="text-blue-700">
+                {stats.correct} out of {stats.total} players got it right!
+              </p>
+              {playerAnswer !== null && (
+                <p className="text-lg font-semibold mt-2">
+                  You answered: {playerAnswer === question.correctAnswer ? '✅ Correct!' : '❌ Incorrect'}
+                </p>
+              )}
+            </div>
+          )}
+
+          {isAdmin && showResults && (
+            <button
+              onClick={nextQuestion}
+              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition"
+            >
+              {currentQuestion < questions.length - 1 ? 'Next Question' : 'View Final Results'}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // RESULTS SCREEN
+  if (mode === 'results') {
+    const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full">
+          <div className="text-center mb-8">
+            <Trophy className="w-20 h-20 text-yellow-500 mx-auto mb-4" />
+            <h2 className="text-4xl font-bold text-gray-800 mb-2">Quiz Complete!</h2>
+            <p className="text-gray-600">Final Rankings</p>
+          </div>
+
+          <div className="space-y-3 mb-8">
+            {sortedPlayers.map((player, index) => (
+              <div
+                key={player.id}
+                className={`flex items-center justify-between p-4 rounded-xl ${
+                  index === 0 ? 'bg-gradient-to-r from-yellow-400 to-orange-400 text-white' :
+                  index === 1 ? 'bg-gradient-to-r from-gray-300 to-gray-400 text-gray-800' :
+                  index === 2 ? 'bg-gradient-to-r from-orange-300 to-orange-400 text-white' :
+                  'bg-gray-100 text-gray-800'
+                }`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="text-2xl font-bold">#{index + 1}</div>
+                  <div className="text-lg font-semibold">{player.name}</div>
+                </div>
+                <div className="text-2xl font-bold">{player.score}</div>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={() => {
+              setMode('home');
+              setQuizId('');
+              setPlayerName('');
+              setQuestions([]);
+              setPlayers([]);
+              setCurrentQuestion(0);
+              setGameState('waiting');
+              setIsAdmin(false);
+            }}
+            className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg transition"
+          >
+            Create New Quiz
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
